@@ -1,0 +1,9 @@
+[package]
+authors = ["jacob"]
+name = "mini-hyper-router"
+version = "0.1.0"
+
+[dependencies]
+
+[dev-dependencies]
+hyper = "0.9.10"
