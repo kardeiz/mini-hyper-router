@@ -5,7 +5,6 @@ extern crate hyper;
 use hyper::server::{Server, Request, Response};
 use hyper::method::Method;
 
-
 fn handle_numbers(_: &Request, res: Response, id: i32) {
     res.send(format!("NUMBER: {}", id).as_bytes()).unwrap();
 }
@@ -13,7 +12,6 @@ fn handle_numbers(_: &Request, res: Response, id: i32) {
 fn main() {
 
     let server = {
-
         let host = ::std::env::var("WEB_HOST")
             .unwrap_or("0.0.0.0".into());
         let port = ::std::env::var("WEB_PORT")
@@ -40,6 +38,10 @@ fn main() {
                 return;
             }
         );
+
+        *res.status_mut() = hyper::status::StatusCode::NotFound;
+        res.send(b"Path not found").unwrap();
+
     }).unwrap();
 
 
