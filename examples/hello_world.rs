@@ -11,31 +11,6 @@ fn handle_numbers(_: &Request, res: Response, id: i32) {
     res.send(format!("NUMBER: {}", id).as_bytes()).unwrap();
 }
 
-fn handlex(req: Request, mut res: Response) {
-    routing! { &req, 
-        [Method::Get] (/foo/<id>) => {
-            let id: String = id;
-            res.send(format!("{{\"id\": \"{}\"}}", id).as_bytes()).unwrap();
-            return;
-        },
-        [Method::Get] (/<id>) => {
-            handle_numbers(&req, res, id);
-            return;
-        },
-        [Method::Get] (/assets/<<path>>) => {
-            let path: String = path;
-            res.send(path.as_bytes());
-            return;
-        },
-        [Method::Post] (/about/) => {
-            res.send(b"about").unwrap();
-            return;
-        }
-    };
-}
-
-
-
 fn main() {
 
     let server = {        
