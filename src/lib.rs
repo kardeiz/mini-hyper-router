@@ -12,128 +12,101 @@
 // according to those terms.
 
 #[macro_export]
-macro_rules! router {
-    ($request:expr, $(($method:pat) ($($pat:tt)+) => $value:block),*) => {
+macro_rules! routing {
+    ($request:expr, $([$method:pat] ($($path:tt)+) => $value:block),*) => {
         {
             let request = $request;
 
-            fn splitter(ch: char) -> bool {
+            fn capture_split(ch: char) -> bool {
                 match ch {
-                    '.' | '/' | '-' => { true },
+                    '.' | '/' => { true },
                     _ => { false }
                 }
             }
 
-            let request_url = match request.uri {
+            fn path_split(ch: char) -> bool {
+                match ch {
+                    '?' | '#' => { true },
+                    _ => { false }
+                }
+            } 
+
+            let path = match request.uri {
                 ::hyper::uri::RequestUri::AbsolutePath(ref s) => {
-                    let pos = s.find('?').unwrap_or(s.len());
-                    Some(&s[..pos])
+                    let pos = s.find(path_split).unwrap_or(s.len());
+                    &s[..pos]
                 },
-                ::hyper::uri::RequestUri::AbsoluteUri(ref url) => Some(url.path()),
-                _ => None,
+                ::hyper::uri::RequestUri::AbsoluteUri(ref url) => url.path(),
+                _ => panic!("Unexpected request URI")
             };
 
-            let mut matched = false;
-
-            if let Some(request_url) = request_url {
-                $({
-                        if !matched {
-                            match request.method {
-                                $method => {
-                                    matched = router!(__check_pattern request_url $value $($pat)+);
-                                },
-                                _ => {}
-                            }
-                        }
-                })+
-            }
+            $({
+                match request.method {
+                    $method => {
+                        routing!(__check__ path $value $($path)+);
+                    },
+                    _ => {}
+                }
+            })+
         }
     };
 
-    (__check_pattern $url:ident $value:block /{$p:ident} $($rest:tt)*) => (
-        if !$url.starts_with('/') {
-            false
-        } else {
-            let url = &$url[1..];
-            let pat_end = url.find(splitter).unwrap_or(url.len());
-            let rest_url = &url[pat_end..];
+    (__check__ $path:ident $value:block /<$p:ident> $($rest:tt)*) => (
+        if $path.starts_with('/') {
+            let url = &$path[1..];
+            let pat_end = url.find(capture_split).unwrap_or(url.len());
+            let rest = &url[pat_end..];
 
             if let Some($p) = url[0 .. pat_end].parse().ok() {
-                router!(__check_pattern rest_url $value $($rest)*)
-            } else {
-                false
+                routing!(__check__ rest $value $($rest)*)
             }
         }
     );
 
-    (__check_pattern $url:ident $value:block /{$p:ident: $t:ty} $($rest:tt)*) => (
-        if !$url.starts_with('/') {
-            false
-        } else {
-            let url = &$url[1..];
-            let pat_end = url.find(splitter).unwrap_or(url.len());
-            let rest_url = &url[pat_end..];
-
-            if let Some($p) = url[0 .. pat_end].parse().ok() {
-                let $p: $t = $p;
-                router!(__check_pattern rest_url $value $($rest)*)
-            } else {
-                false
+    (__check__ $path:ident $value:block /<<$p:ident>> $($rest:tt)*) => (
+        if $path.starts_with('/') {
+            let path = &$path[1..];
+            let end = path.len();
+            if let Some($p) = path[0 .. end].parse().ok() {
+                $value
             }
         }
     );
 
-    (__check_pattern $url:ident $value:block /$p:ident $($rest:tt)*) => (
+    (__check__ $path:ident $value:block /$p:ident $($rest:tt)*) => (
         {
             let required = concat!("/", stringify!($p));
-            if $url.starts_with(required) {
-                let rest_url = &$url[required.len()..];
-                router!(__check_pattern rest_url $value $($rest)*)
-            } else {
-                false
+            if $path.starts_with(required) {
+                let rest = &$path[required.len()..];
+                routing!(__check__ rest $value $($rest)*)
             }
         }
     );
 
-    (__check_pattern $url:ident $value:block - $($rest:tt)*) => (
+    (__check__ $path:ident $value:block . $($rest:tt)*) => (
         {
-            if $url.starts_with('-') {
-                let rest_url = &$url[1..];
-                router!(__check_pattern rest_url $value $($rest)*)
-            } else {
-                false
+            if $path.starts_with('.') {
+                let rest = &$path[1..];
+                routing!(__check__ rest $value $($rest)*)
             }
         }
     );
 
-    (__check_pattern $url:ident $value:block . $($rest:tt)*) => (
-        {
-            if $url.starts_with('.') {
-                let rest_url = &$url[1..];
-                router!(__check_pattern rest_url $value $($rest)*)
-            } else {
-                false
-            }
-        }
+    (__check__ $path:ident $value:block) => (
+        if $path.len() == 0 { $value }
     );
 
-    (__check_pattern $url:ident $value:block) => (
-        if $url.len() == 0 { $value; true } else { false }
+    (__check__ $path:ident $value:block /) => (
+        if $path == "/" { $value } 
     );
 
-    (__check_pattern $url:ident $value:block /) => (
-        if $url == "/" { $value; true } else { false }
-    );
-
-    (__check_pattern $url:ident $value:block $p:ident $($rest:tt)*) => (
+    (__check__ $path:ident $value:block $p:ident $($rest:tt)*) => (
         {
             let required = stringify!($p);
-            if $url.starts_with(required) {
-                let rest_url = &$url[required.len()..];
-                router!(__check_pattern rest_url $value $($rest)*)
-            } else {
-                false
-            }
+            if $path.starts_with(required) {
+                let rest = &$path[required.len()..];
+                routing!(__check__ rest $value $($rest)*)
+            } 
         }
     );
 }
